@@ -65,6 +65,16 @@ namespace ERPViewer
                 //Parse the document from the content of a response to a virtual request
                 var document = await context.OpenAsync(req => req.Content(html));
                 var ltValue = document.GetElementsByName("lt")[0].GetAttribute("value");
+                var values = new List<KeyValuePair<string, string>>();
+                values.Add(new KeyValuePair<string, string>("lt", ltValue));
+                values.Add(new KeyValuePair<string, string>("username", txtUserName.Text));
+                values.Add(new KeyValuePair<string, string>("password", txtPassword.Password));
+                values.Add(new KeyValuePair<string, string>("execution", "e1s1"));
+                values.Add(new KeyValuePair<string, string>("_eventId", "submit"));
+                var loginContent = new FormUrlEncodedContent(values);
+                var loginResonse = await httpClient.PostAsync("/cas/login?service=https://erp.shgbit.com/jqerp/", loginContent);
+                var loginRes = await loginResonse.Content.ReadAsStringAsync();
+                MessageBox.Show(loginRes);
             }
         }
     }
