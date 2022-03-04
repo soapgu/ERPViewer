@@ -87,6 +87,13 @@ namespace ERPViewer
             return retValue;
         }
 
+        /// <summary>
+        /// 完成登陆操作
+        /// 并抓取js脚本中的logonCode
+        /// 把logonCode加入到key为_CUNAME的cookie中
+        /// </summary>
+        /// <param name="itValue"></param>
+        /// <returns></returns>
         private async Task<bool> Login( string itValue ) 
         {
             bool retValue = false;
@@ -111,6 +118,10 @@ namespace ERPViewer
             return retValue;
         }
 
+        /// <summary>
+        /// 获取任务信息的json
+        /// </summary>
+        /// <returns></returns>
         private async Task<String> GetTaskInfo() 
         {
             var values = new List<KeyValuePair<string, string>>();
