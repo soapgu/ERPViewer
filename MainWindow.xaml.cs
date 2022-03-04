@@ -1,4 +1,5 @@
 ﻿using AngleSharp;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -6,6 +7,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -49,33 +51,74 @@ namespace ERPViewer
 
         private async void BtnLogin_Click(object sender, RoutedEventArgs e)
         {
+            var itCode = await this.GetItCode();
+            if (itCode != null)
+            {
+                var success = await this.Login(itCode);
+                if (success)
+                {
+                    var task = await this.GetTaskInfo();
+                    MessageBox.Show(task);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 1 获取jquery的JSESSSIONID存储至Cookie
+        /// 2 获取登陆页面的It字段验证码
+        /// </summary>
+        /// <returns>It字段验证码</returns>
+        private async Task<String> GetItCode()
+        {
+            string retValue = null;
             HttpResponseMessage response = await httpClient.GetAsync("/jqerp/");
             if (response.IsSuccessStatusCode)
             {
-                //MessageBox.Show("Cookie:" + handler.CookieContainer.GetCookies(new Uri(baseUrl + "/jqerp/")).Count);
-                //MessageBox.Show("cas Cookie:" + handler.CookieContainer.GetCookies(new Uri(baseUrl + "/cas/")).Count);
-                var html = await response.Content.ReadAsStringAsync();
-                //MessageBox.Show(retValue);
-                //Use the default configuration for AngleSharp
-                var config = AngleSharp.Configuration.Default;
 
+                var html = await response.Content.ReadAsStringAsync();
+                var config = AngleSharp.Configuration.Default;
                 //Create a new context for evaluating webpages with the given config
                 var context = BrowsingContext.New(config);
 
                 //Parse the document from the content of a response to a virtual request
                 var document = await context.OpenAsync(req => req.Content(html));
-                var ltValue = document.GetElementsByName("lt")[0].GetAttribute("value");
-                var values = new List<KeyValuePair<string, string>>();
-                values.Add(new KeyValuePair<string, string>("lt", ltValue));
-                values.Add(new KeyValuePair<string, string>("username", txtUserName.Text));
-                values.Add(new KeyValuePair<string, string>("password", txtPassword.Password));
-                values.Add(new KeyValuePair<string, string>("execution", "e1s1"));
-                values.Add(new KeyValuePair<string, string>("_eventId", "submit"));
-                var loginContent = new FormUrlEncodedContent(values);
-                var loginResonse = await httpClient.PostAsync("/cas/login?service=https://erp.shgbit.com/jqerp/", loginContent);
-                var loginRes = await loginResonse.Content.ReadAsStringAsync();
-                MessageBox.Show(loginRes);
+                retValue = document.GetElementsByName("lt")[0].GetAttribute("value");
             }
+            return retValue;
+        }
+
+        private async Task<bool> Login( string itValue ) 
+        {
+            bool retValue = false;
+            var values = new List<KeyValuePair<string, string>>();
+            values.Add(new KeyValuePair<string, string>("lt", itValue));
+            values.Add(new KeyValuePair<string, string>("username", txtUserName.Text));
+            values.Add(new KeyValuePair<string, string>("password", txtPassword.Password));
+            values.Add(new KeyValuePair<string, string>("execution", "e1s1"));
+            values.Add(new KeyValuePair<string, string>("_eventId", "submit"));
+            var content = new FormUrlEncodedContent(values);
+            var response = await httpClient.PostAsync("/cas/login?service=https://erp.shgbit.com/jqerp/", content);
+            var bodyString = await response.Content.ReadAsStringAsync();
+
+            var match = Regex.Match(bodyString, @"(?<=_userInfo=).*(?=;)");
+            if (match.Success)
+            {
+                var loginCode = JArray.Parse(match.Value).First().Value<string>("logonCode");
+                this.handler.CookieContainer.Add(new System.Net.Cookie("_CUNAME", loginCode, "/jqerp", "erp.shgbit.com"));
+                retValue = true;
+
+            }
+            return retValue;
+        }
+
+        private async Task<String> GetTaskInfo() 
+        {
+            var values = new List<KeyValuePair<string, string>>();
+            values.Add(new KeyValuePair<string, string>("actType", "loadTaskListJSON"));
+            var content = new FormUrlEncodedContent(values);
+            var response = await httpClient.PostAsync("/jqerp/web/taskInfoService", content);
+            var bodyString = await response.Content.ReadAsStringAsync();
+            return bodyString;
         }
     }
 }
